@@ -20,6 +20,10 @@ tailwind.config = {
         'sans': ['sans-serif'],
         'mono': ['monospace']
       },
+      width: {
+        '85': '21.25rem', // 340px
+        '90': '22.5rem',  // 360px
+      },
       typography: {
         DEFAULT: {
           css: {
@@ -182,7 +186,7 @@ marked.setOptions({
 
  
   #editor p:first-child {
-    @apply text-gray-500 mb-8;
+    @apply text-gray-400 mb-8;
   }
 
   /* Update/add character chip styling */
@@ -359,7 +363,7 @@ marked.setOptions({
     </div>
   </div>
 
-  <div id="sidebar" class="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+  <div id="sidebar" class="w-96 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
     <!-- Header - set to h-10 -->
     <div class="h-10 flex items-center px-2 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
       <button class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors" id="documentSelector" title="Open Document">
@@ -373,15 +377,20 @@ marked.setOptions({
 
     <!-- Tab buttons - also set to h-10 -->
     <div class="h-10 flex border-b border-gray-200 dark:border-gray-700">
-      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="chapter">
-        Chapters
-      </button>
-      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="character">
-        Characters
-      </button>
-      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="note">
-        Notes
-      </button>
+      <div class="grid grid-cols-4 w-full">
+        <button class="h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="chapter">
+          Chapters
+        </button>
+        <button class="h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="character">
+          Characters
+        </button>
+        <button class="h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="plot">
+          Plot Points
+        </button>
+        <button class="h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="note">
+          Story Notes
+        </button>
+      </div>
     </div>
     <div id="sectionList" class="flex-1 overflow-y-auto p-4">
       <!-- Sections will be added here -->
@@ -485,7 +494,8 @@ marked.setOptions({
           </span>
           <button id="downloadButton" class="h-8 w-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded" title="Download section as .txt">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4 4l-4 4m0 0l-4-4m4 4V8"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
             </svg>
           </button>
         </div>
@@ -1578,6 +1588,11 @@ marked.setOptions({
             type: 'character'
           },
           {
+            title: 'Plot Points',
+            content: '- First plot point\n\nDescribe the plot point here...',
+            type: 'plot'
+          },
+          {
             title: 'Research Notes',
             content: 'Research Notes\n\nAdd your research and references here...',
             type: 'note'
@@ -1847,6 +1862,8 @@ marked.setOptions({
       newSection = { title: 'Chapter', content: '# Chapter', type: 'chapter' };
     } else if (bookData.currentTab === 'character') {
       newSection = { title: 'Character', content: '@ Character', type: 'character' };
+    } else if (bookData.currentTab === 'plot') {
+      newSection = { title: 'Plot Point', content: '- Plot point', type: 'plot' };
     } else {
       newSection = { title: 'Note', content: 'Note', type: 'note' };
     }
@@ -1914,6 +1931,10 @@ marked.setOptions({
         processedTitle = firstLine.replace(/^@+/, '').trim() || 'Unnamed Character';
         type = 'character';
         bookData.currentTab = 'character';
+      } else if (firstLine.startsWith('-')) {
+        processedTitle = firstLine.replace(/^-+\s*/, '') || 'Untitled Plot Point';
+        type = 'plot';
+        bookData.currentTab = 'plot';
       } else {
         processedTitle = firstLine || 'Untitled Note';
         type = 'note';
