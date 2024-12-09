@@ -86,8 +86,14 @@ marked.setOptions({
     }
     
     .menu-tooltip {
-      @apply absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg 
-        border border-gray-200 dark:border-gray-700 z-50 min-w-[100px] whitespace-nowrap;
+      @apply absolute bg-white dark:bg-gray-800 rounded-lg shadow-lg 
+        border border-gray-200 dark:border-gray-700 z-50 min-w-[100px] whitespace-nowrap
+        py-2;
+      /* Position it to the left of the menu button instead */
+      left: auto;
+      right: calc(100% + 0.25rem);
+      top: 50%;
+      transform: translateY(-50%);
     }
     
     .menu-tooltip[data-visible="true"] {
@@ -139,25 +145,6 @@ marked.setOptions({
       @apply block;
     }
 
-    /* Arrow for the tooltip */
-    .menu-tooltip::after {
-      content: "";
-      @apply absolute;
-      top: -4px;
-      right: 10px;
-      width: 8px;
-      height: 8px;
-      transform: rotate(45deg);
-      @apply bg-gray-50 dark:bg-gray-900;
-      border-left: 1px solid;
-      border-top: 1px solid;
-      @apply border-gray-200 dark:border-gray-700;
-    }
-
-    :root.dark .menu-tooltip::after {
-      /* Remove this rule since we're using Tailwind classes above */
-    }
-
     /* Update the menu item styling */
     .menu-item {
       @apply flex items-center gap-3 py-2 px-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer;
@@ -176,6 +163,16 @@ marked.setOptions({
       @apply w-4 h-4 rounded border-gray-300 dark:border-gray-600 
              text-blue-600 dark:text-blue-400 
              focus:ring-blue-500 dark:focus:ring-blue-400;
+    }
+
+    /* Add the icon transition styles inside the style block */
+    .icon-default, .icon-success {
+      @apply transition-opacity duration-200;
+    }
+
+    /* Add padding above the checkmark */
+    .icon-success {
+      @apply pt-1; /* Changed from pt-0.5 to pt-1 (4px instead of 2px) */
     }
   }
 
@@ -292,7 +289,34 @@ marked.setOptions({
     margin: 1.25em 0;
   }
 
-</style>
+  /* Add this new style to handle tooltips near the bottom */
+  .menu-tooltip.flip-up {
+    top: auto;
+    bottom: 100%;
+    transform: translateY(-0.25rem);
+  }
+
+  /* Add this new style for the arrow */
+  .menu-tooltip::after {
+    content: '';
+    @apply absolute border-8 border-transparent border-l-white dark:border-l-gray-800;
+    right: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* Update the menu item styling to ensure proper spacing */
+  .menu-tooltip button {
+    @apply w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700;
+  }
+
+  /* Add style for right-aligned tooltip arrow */
+  .menu-tooltip.right-aligned::after {
+    @apply border-r-white dark:border-r-gray-800 border-l-transparent;
+    right: auto;
+    left: -16px;
+  }
+  </style>
 </head>
 <body class="h-full m-0 font-sans bg-white dark:bg-black text-gray-900 dark:text-gray-100 flex overflow-hidden">
   <div id="loginScreen" class="fixed inset-0 bg-white dark:bg-black flex items-center justify-center z-50">
@@ -451,7 +475,7 @@ marked.setOptions({
           <button id="copyButton" class="h-8 w-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded" title="Copy section to clipboard">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
             </svg>
           </button>
         </div>
@@ -470,7 +494,13 @@ marked.setOptions({
   </div>
 
   <div class="fixed inset-0 bg-black/40 hidden flex items-center justify-center" id="modalOverlay">
-    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full relative">
+      <button id="closeModal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      
       <h2 class="text-xl font-semibold mb-4">Settings</h2>
       
       <div class="space-y-6">
@@ -514,21 +544,24 @@ marked.setOptions({
           </button>
         </div>
       </div>
-
-      <div class="mt-6 flex justify-end">
-        <button id="closeModal" class="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">Close</button>
-      </div>
     </div>
   </div>
 
   <div class="fixed inset-0 bg-black/40 hidden items-center justify-center" id="documentModal">
-    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full relative">
+      <button id="closeDocModal" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      
       <h2 class="text-xl font-semibold mb-4">Documents</h2>
       
       <div class="space-y-4">
         <div class="flex justify-between items-center">
           <input type="text" id="newDocName" placeholder="New document name" 
-                 class="flex-1 p-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+                 class="flex-1 p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+                 autocomplete="off">
           <button id="createDoc" class="ml-2 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
             Create
           </button>
@@ -536,16 +569,10 @@ marked.setOptions({
 
         <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
           <h3 class="text-sm font-medium mb-2">Your Documents</h3>
-          <ul id="documentList" class="max-h-[300px] overflow-y-auto space-y-2 pb-4">
+          <ul id="documentList" class="max-h-[300px] overflow-y-auto space-y-2 pb-12">
             <!-- Documents will be listed here -->
           </ul>
         </div>
-      </div>
-
-      <div class="mt-6 flex justify-end">
-        <button id="closeDocModal" class="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-          Close
-        </button>
       </div>
     </div>
   </div>
@@ -557,7 +584,7 @@ marked.setOptions({
         <h3 class="text-lg font-semibold text-white">Add Character</h3>
         <button id="closeCharacterSelector" class="text-gray-400 hover:text-gray-300">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
@@ -570,24 +597,23 @@ marked.setOptions({
 
   <!-- AI Chat Modal -->
   <div id="aiChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl mx-4 flex flex-col h-[60vh]">
+    <div class="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl mx-4 flex flex-col h-[60vh] relative">
       <!-- Header -->
-      <div class="flex items-center justify-between p-4 border-b dark:border-gray-700">
-        <div class="flex items-center gap-4">
-          <h3 class="text-lg font-semibold">AI Assistant</h3>
-          <button id="clearChat" 
-                  class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 
-                         flex items-center gap-1">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-            <span>Clear</span>
-          </button>
-        </div>
-        <button id="closeAiChat" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      <button id="closeAiChat" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-4 p-4 border-b dark:border-gray-700">
+        <h3 class="text-lg font-semibold">AI Assistant</h3>
+        <button id="clearChat" 
+                class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 
+                       flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
+          <span>Clear</span>
         </button>
       </div>
       
@@ -1071,7 +1097,7 @@ marked.setOptions({
     filteredSections.forEach((sec) => {
       const globalIndex = bookData.sections.indexOf(sec);
       const li = document.createElement('li');
-      li.className = `section-item`;
+      li.className = 'section-item';
       li.dataset.selected = (globalIndex === bookData.selectedSection).toString();
 
       const titleSpan = document.createElement('span');
@@ -1489,7 +1515,7 @@ marked.setOptions({
     sortedDocs.forEach((doc, index) => {
       const originalIndex = documents.documents.indexOf(doc);
       const li = document.createElement('li');
-      li.className = 'flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer';
+      li.className = 'flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer group';
       if (documents.currentDocument === originalIndex) {
         li.classList.add('bg-gray-100', 'dark:bg-gray-800');
       }
@@ -1503,44 +1529,23 @@ marked.setOptions({
           <span>${doc.name}</span>
         </div>
         ${documents.currentDocument !== originalIndex ? `
-          <div class="relative">
-            <button class="menu-btn p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
-              ⋮
-            </button>
-            <div class="menu-tooltip" data-visible="false">
-              <button class="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700" data-delete="${originalIndex}">
-                Delete
-              </button>
-            </div>
-          </div>
+          <button class="invisible group-hover:visible p-1.5 text-gray-600 dark:text-gray-400 hover:text-white hover:bg-gray-700 dark:hover:bg-gray-600 rounded transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+          </button>
         ` : ''}
       `;
       
+      // Add click handlers
       li.addEventListener('click', (e) => {
-        if (!e.target.closest('.menu-btn') && !e.target.closest('.menu-tooltip')) {
+        if (!e.target.closest('button')) {
           loadDocument(originalIndex);
         }
       });
 
-      const menuContainer = li.querySelector('.relative');
-      if (menuContainer) {
-        let timeoutId;
-        
-        menuContainer.addEventListener('mouseenter', () => {
-          clearTimeout(timeoutId);
-          const tooltip = menuContainer.querySelector('.menu-tooltip');
-          tooltip.setAttribute('data-visible', 'true');
-        });
-
-        menuContainer.addEventListener('mouseleave', () => {
-          timeoutId = setTimeout(() => {
-            const tooltip = menuContainer.querySelector('.menu-tooltip');
-            tooltip.setAttribute('data-visible', 'false');
-          }, 100);
-        });
-      }
-
-      const deleteBtn = li.querySelector('[data-delete]');
+      const deleteBtn = li.querySelector('button');
       if (deleteBtn) {
         deleteBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1620,7 +1625,6 @@ marked.setOptions({
       }
       saveDocuments();
       renderDocumentList();
-      renderSections();
     } catch (error) {
       console.error('Error deleting document:', error);
     }
@@ -2208,24 +2212,24 @@ marked.setOptions({
             ${!isUser ? `
             <div class="absolute -bottom-8 left-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <div class="relative">
-                <button class="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white insert-response-btn">
-                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <button class="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 insert-response-btn">
+                  <svg class="w-4 h-4 icon-default" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                           d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                   </svg>
-                  <svg class="absolute left-1/2 -translate-x-1/2 -top-6 w-4 h-4 text-green-500 opacity-0 pointer-events-none transition-opacity success-icon" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                  <svg class="w-4 h-4 icon-success text-green-500 absolute inset-0 opacity-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                   </svg>
                 </button>
               </div>
               <div class="relative">
                 <button class="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 copy-response-btn">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="w-4 h-4 icon-default" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                          d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
+                          d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
                   </svg>
-                  <svg class="absolute left-1/2 -translate-x-1/2 -top-6 w-4 h-4 text-green-500 opacity-0 pointer-events-none transition-opacity success-icon" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                  <svg class="w-4 h-4 icon-success text-green-500 absolute inset-0 opacity-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                   </svg>
                 </button>
               </div>
@@ -2242,14 +2246,16 @@ marked.setOptions({
         const messageContent = currentConversation.messages[index * 2 + 1].content;
         insertAIResponse(messageContent);
         
-        // Show success indicator
-        const successIcon = btn.querySelector('.success-icon');
-        if (successIcon) {
-          successIcon.classList.add('opacity-100');
-          setTimeout(() => {
-            successIcon.classList.remove('opacity-100');
-          }, 2000);
-        }
+        // Show checkmark animation
+        const defaultIcon = btn.querySelector('.icon-default');
+        const successIcon = btn.querySelector('.icon-success');
+        defaultIcon.classList.add('opacity-0');
+        successIcon.classList.remove('opacity-0');
+        
+        setTimeout(() => {
+          defaultIcon.classList.remove('opacity-0');
+          successIcon.classList.add('opacity-0');
+        }, 1000);
       });
     });
 
@@ -2257,14 +2263,16 @@ marked.setOptions({
       btn.addEventListener('click', () => {
         const messageContent = currentConversation.messages[index * 2 + 1].content;
         navigator.clipboard.writeText(messageContent).then(() => {
-          // Show success indicator
-          const successIcon = btn.querySelector('.success-icon');
-          if (successIcon) {
-            successIcon.classList.add('opacity-100');
-            setTimeout(() => {
-              successIcon.classList.remove('opacity-100');
-            }, 2000);
-          }
+          // Show checkmark animation
+          const defaultIcon = btn.querySelector('.icon-default');
+          const successIcon = btn.querySelector('.icon-success');
+          defaultIcon.classList.add('opacity-0');
+          successIcon.classList.remove('opacity-0');
+          
+          setTimeout(() => {
+            defaultIcon.classList.remove('opacity-0');
+            successIcon.classList.add('opacity-0');
+          }, 1000);
         });
       });
     });

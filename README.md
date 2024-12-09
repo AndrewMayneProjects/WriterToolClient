@@ -1,6 +1,10 @@
 # Writer Tool Client
 
+
+https://f904e9cc.writer-tool.pages.dev
+
 A web-based speech-to-text writing tool with AI assistance. Built with vanilla JavaScript and Supabase.
+
 
 ## Features
 
@@ -21,3 +25,8 @@ This project is configured for deployment on Cloudflare Pages. To deploy:
    - Build command: (none required)
    - Build output directory: public
    - Root directory: / 
+  
+
+```
+wrangler pages deploy public
+```
