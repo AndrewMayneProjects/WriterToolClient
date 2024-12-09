@@ -1,0 +1,2454 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Writer Tool</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+const AUTOSAVE_DELAY = 1000; // 1 second
+
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        'palatino': ['"Palatino Linotype"', 'serif'],
+        'serif': ['serif'],
+        'sans': ['sans-serif'],
+        'mono': ['monospace']
+      },
+      typography: {
+        DEFAULT: {
+          css: {
+            maxWidth: 'none',
+            color: 'inherit',
+            p: {
+              marginTop: '0.25rem',
+              marginBottom: '0.25rem'
+            },
+            'h1, h2, h3, h4': {
+              color: 'inherit',
+              marginTop: '0.5rem',
+              marginBottom: '0.25rem'
+            },
+            a: {
+              color: 'inherit'
+            },
+            code: {
+              color: 'inherit',
+              backgroundColor: 'rgb(0 0 0 / 0.1)',
+              borderRadius: '0.25rem',
+              padding: '0.125rem 0.25rem'
+            },
+            pre: {
+              backgroundColor: 'rgb(0 0 0 / 0.1)',
+              marginTop: '0.25rem',
+              marginBottom: '0.25rem'
+            },
+            blockquote: {
+              borderLeftWidth: '4px',
+              borderColor: 'rgb(0 0 0 / 0.2)',
+              paddingLeft: '1rem',
+              marginTop: '0.25rem',
+              marginBottom: '0.25rem'
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Add these Marked.js settings
+marked.setOptions({
+  breaks: true,
+  gfm: true
+});
+</script>
+
+<!-- Add Tailwind Typography plugin -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/typography@0.5.9/dist/typography.min.js"></script>
+
+<style type="text/tailwindcss">
+
+ 
+  @layer components {
+    .btn {
+      @apply p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors;
+    }
+    
+    /* Add these styles for the document menu */
+    .menu-btn {
+      @apply text-xl leading-none;
+    }
+    
+    .menu-tooltip {
+      @apply absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg 
+        border border-gray-200 dark:border-gray-700 z-50 min-w-[100px] whitespace-nowrap;
+    }
+    
+    .menu-tooltip[data-visible="true"] {
+      @apply block;
+    }
+    
+    .tab-btn {
+      @apply flex-1 p-3 text-sm hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors data-[active=true]:border-b-2 data-[active=true]:border-gray-900 dark:data-[active=true]:border-gray-100;
+    }
+
+    .icon {
+      @apply h-5 w-5;
+    }
+
+    .section-item {
+      @apply w-full min-w-full cursor-pointer select-none flex items-center relative py-1.5 justify-between border-b border-gray-100 dark:border-gray-800;
+    }
+
+    .section-item[data-selected="true"] {
+      @apply bg-gray-50 dark:bg-gray-900;
+    }
+
+    .section-item:last-child {
+      @apply border-b-0;
+    }
+
+    .section-item-title {
+      @apply px-4;
+    }
+
+    .menu-container {
+      @apply relative flex items-center opacity-0 transition-opacity duration-150;
+    }
+
+    .section-item:hover .menu-container {
+      @apply opacity-100;
+    }
+
+    .menu-btn {
+      @apply ml-auto p-3 hover:bg-gray-200 dark:hover:bg-gray-800;
+    }
+
+    .menu-tooltip {
+      @apply hidden absolute top-full right-0 mt-1 bg-gray-50 dark:bg-gray-900 shadow-lg 
+        rounded-lg py-3 px-6 z-50 min-w-[140px] border border-gray-200 dark:border-gray-700;
+    }
+
+    .menu-tooltip[data-visible="true"] {
+      @apply block;
+    }
+
+    /* Arrow for the tooltip */
+    .menu-tooltip::after {
+      content: "";
+      @apply absolute;
+      top: -4px;
+      right: 10px;
+      width: 8px;
+      height: 8px;
+      transform: rotate(45deg);
+      @apply bg-gray-50 dark:bg-gray-900;
+      border-left: 1px solid;
+      border-top: 1px solid;
+      @apply border-gray-200 dark:border-gray-700;
+    }
+
+    :root.dark .menu-tooltip::after {
+      /* Remove this rule since we're using Tailwind classes above */
+    }
+
+    /* Update the menu item styling */
+    .menu-item {
+      @apply flex items-center gap-3 py-2 px-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer;
+    }
+
+    .menu-item svg {
+      @apply h-4 w-4;
+    }
+
+    /* Update the menu item content */
+    .menu-item-delete {
+      @apply text-red-600 dark:text-red-400;
+    }
+
+    .character-checkbox {
+      @apply w-4 h-4 rounded border-gray-300 dark:border-gray-600 
+             text-blue-600 dark:text-blue-400 
+             focus:ring-blue-500 dark:focus:ring-blue-400;
+    }
+  }
+
+  #editor p + p {
+    @apply indent-8;
+  }
+
+ 
+  #editor p:first-child {
+    @apply text-gray-500 mb-8;
+  }
+
+  /* Update/add character chip styling */
+  .character-chip {
+    @apply inline-flex items-center gap-2 px-4 h-12 bg-gray-800 rounded-full text-white;
+  }
+
+  .character-chip .record-button {
+    @apply flex items-center justify-center w-8 h-8 -ml-2 rounded-full hover:bg-gray-700 text-gray-300 hover:text-white transition-colors;
+  }
+
+  .character-chip .record-button.recording {
+    @apply text-red-400 ring-2 ring-red-500;
+  }
+
+  .character-chip .delete-button {
+    @apply flex items-center justify-center w-8 h-8 -mr-2 rounded-full hover:bg-gray-700 text-gray-400 hover:text-white transition-colors;
+  }
+
+  /* Hide scrollbar for Webkit browsers */
+  .max-h-[5.5rem]::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for Firefox */
+  .max-h-[5.5rem] {
+    scrollbar-width: none;
+  }
+
+  /* Hide scrollbar for Webkit browsers */
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for Firefox */
+  .overflow-x-auto {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+  }
+
+  .processing-line {
+    height: 2px;
+    background-color: black;
+    animation: pulse 1.5s ease-in-out infinite;
+    transition: background-color 0.2s ease-in-out;
+  }
+
+  .dark .processing-line {
+    background-color: rgb(0, 0, 0);
+  }
+
+  .processing-line.active {
+    background-color: white;
+  }
+
+  .dark .processing-line.active {
+    background-color: white;
+  }
+
+  /* Add this to your style section */
+  #aiChatHistory p {
+    text-indent: 0 !important;
+  }
+
+ 
+  #aiChatHistory li {
+    padding-bottom: 1.25em;
+  }
+
+  @layer components {
+    .prose {
+      @apply prose-headings:mt-2 prose-headings:mb-1 
+        prose-p:my-1 prose-ul:my-1 prose-ol:my-1
+        prose-pre:my-1 prose-blockquote:my-1
+        prose-headings:text-inherit prose-a:text-inherit
+        prose-strong:text-inherit prose-code:text-inherit
+        prose-pre:bg-black/10 dark:prose-pre:bg-white/10
+        prose-code:bg-black/10 dark:prose-code:bg-white/10
+        prose-code:px-1 prose-code:py-0.5 prose-code:rounded
+        prose-blockquote:border-l-4 prose-blockquote:pl-4
+        prose-blockquote:border-current/20;
+    }
+  }
+
+  /* Add these CSS rules for chat message formatting */
+  #aiChatHistory .message-content p {
+    margin-bottom: 1.5em;
+  }
+
+  #aiChatHistory .message-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Add spacing for line breaks in Markdown */
+  #aiChatHistory .message-content br {
+    content: "";
+    display: block;
+    margin: 1.25em 0;
+  }
+
+</style>
+</head>
+<body class="h-full m-0 font-sans bg-white dark:bg-black text-gray-900 dark:text-gray-100 flex overflow-hidden">
+  <div id="loginScreen" class="fixed inset-0 bg-white dark:bg-black flex items-center justify-center z-50">
+    <div class="max-w-md w-full px-6">
+      <div class="text-center mb-8">
+        <h1 class="text-2xl font-bold mb-2">Speech Writer</h1>
+        <p class="text-gray-600 dark:text-gray-400">Sign in to continue</p>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1" for="email">Email</label>
+          <input type="email" id="email" 
+                 class="w-full p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+                 placeholder="you@example.com">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="password">Password</label>
+          <input type="password" id="password" 
+                 class="w-full p-2 border rounded dark:bg-gray-800 dark:border-gray-700"
+                 placeholder="••••••••">
+        </div>
+
+        <div class="flex items-center justify-between">
+          <button id="loginBtn" 
+                  class="w-full py-2 px-4 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
+            Sign In
+          </button>
+        </div>
+
+        <div class="text-center">
+          <button id="signupBtn" class="text-sm text-gray-600 dark:text-gray-400 hover:underline">
+            Need an account? Sign up
+          </button>
+        </div>
+      </div>
+
+      <div id="authError" class="mt-4 text-red-600 dark:text-red-400 text-sm text-center hidden"></div>
+    </div>
+  </div>
+
+  <div id="sidebar" class="w-64 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+    <!-- Header - set to h-10 -->
+    <div class="h-10 flex items-center px-2 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+      <button class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors" id="documentSelector" title="Open Document">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+      </button>
+      <h1 class="text-lg font-semibold leading-none ml-3" id="documentTitle">No Document Selected</h1>
+    </div>
+
+    <!-- Tab buttons - also set to h-10 -->
+    <div class="h-10 flex border-b border-gray-200 dark:border-gray-700">
+      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="chapter">
+        Chapters
+      </button>
+      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="character">
+        Characters
+      </button>
+      <button class="flex-1 h-full flex items-center justify-center text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white border-b-2 border-transparent hover:border-gray-300 dark:hover:border-gray-600 transition-colors" data-type="note">
+        Notes
+      </button>
+    </div>
+    <div id="sectionList" class="flex-1 overflow-y-auto p-4">
+      <!-- Sections will be added here -->
+    </div>
+  </div>
+
+  <div class="flex-1 flex flex-col min-h-screen bg-white dark:bg-black" >
+    <div class="h-10 flex-shrink-0 flex items-center px-4 border-b border-gray-200 dark:border-gray-700">
+      <button class="sidebar-toggle btn" title="Toggle Sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+      <button class="add-chapter-btn btn ml-2" title="Add Section">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+      </button>
+      
+      <div class="ml-auto flex items-center space-x-2">
+        <button class="speech-toggle btn" title="Speech to Text">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+          </svg>
+        </button>
+        <button class="ai-chat-toggle btn" title="AI Assistant">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+        </button>
+        <button class="menu-button btn" title="Settings">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+        
+        <button class="theme-toggle btn" title="Toggle Theme">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    
+    <div class="flex-1 w-full flex justify-center p-5 overflow-auto">
+      <div id="editor" class="w-full max-w-[700px] h-[calc(100vh-20rem)] mb-8 p-5 font-palatino text-base outline-none bg-white dark:bg-black" contenteditable="true"></div>
+    </div>
+
+    <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 mt-4">
+      <div id="processingLine" class="processing-line w-full h-0.5 transition-all duration-300"></div>
+      
+      <!-- Added margin-top to create space -->
+      <div id="speechPalette" class="w-full h-20 px-5 flex items-center opacity-0 pointer-events-none transition-opacity duration-200 ease-in-out">
+        <div class="w-full  mx-auto flex items-center">
+          <!-- Left side: Microphone button -->
+          <button id="narratorRecordBtn" class="flex-none flex items-center justify-center w-12 h-12 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+            </svg>
+          </button>
+
+          <!-- Center: Character list (hidden initially) -->
+          <div class="flex-1 overflow-x-auto mx-4">
+            <div id="characterList" class="flex items-center justify-center gap-3 min-w-min">
+              <!-- Character chips will be added here -->
+            </div>
+          </div>
+
+          <!-- Right side: Add Characters button -->
+          <button id="addCharacterBtn" class="flex-none text-lg text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors">
+            + Characters
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="h-8 flex-shrink-0 flex items-center justify-between px-4 text-xs border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-black">
+      <span id="wordCount" class="h-8 flex items-center">Words: 0</span>
+      <div class="h-8 flex items-center gap-2">
+        <div class="relative h-8 flex items-center">
+          <span id="copyConfirmation" class="absolute right-8 pointer-events-none text-blue-500 dark:text-blue-400 opacity-0 transition-opacity duration-300">
+            Copied!
+          </span>
+          <button id="copyButton" class="h-8 w-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded" title="Copy section to clipboard">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                    d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="relative h-8 flex items-center">
+          <span id="downloadConfirmation" class="absolute right-8 -translate-x-10 pointer-events-none text-blue-500 dark:text-blue-400 opacity-0 transition-opacity duration-300">
+            Downloaded!
+          </span>
+          <button id="downloadButton" class="h-8 w-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded" title="Download section as .txt">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4 4l-4 4m0 0l-4-4m4 4V8"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed inset-0 bg-black/40 hidden flex items-center justify-center" id="modalOverlay">
+    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+      <h2 class="text-xl font-semibold mb-4">Settings</h2>
+      
+      <div class="space-y-6">
+        <div class="space-y-4">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Editor</h3>
+          <div>
+            <label for="fontSelect" class="block text-sm font-medium mb-1">Font</label>
+            <select id="fontSelect" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600">
+              <option value="font-palatino">Palatino Linotype</option>
+              <option value="font-serif">Serif</option>
+              <option value="font-sans">Sans-Serif</option>
+              <option value="font-mono">Monospace</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Font Size: <span id="fontSizeValue">14px</span></label>
+            <input type="range" id="fontSizeRange" min="10" max="36" value="14" class="w-full">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Page Width: <span id="pageWidthValue">700px</span></label>
+            <input type="range" id="pageWidthRange" min="400" max="1200" value="700" class="w-full">
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">Project</h3>
+          <button id="exportBtn" class="w-full px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
+            Export Project
+          </button>
+        </div>
+
+        <div class="pt-6 mt-6 border-t border-gray-200 dark:border-gray-700 space-y-4">
+          <div class="text-sm">
+            <div class="text-gray-500 dark:text-gray-400">Signed in as:</div>
+            <div id="userEmail" class="font-medium"></div>
+          </div>
+          <button id="logoutBtn" class="w-full px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-left">
+            Sign out
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button id="closeModal" class="px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed inset-0 bg-black/40 hidden items-center justify-center" id="documentModal">
+    <div class="bg-gray-50 dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-md w-full">
+      <h2 class="text-xl font-semibold mb-4">Documents</h2>
+      
+      <div class="space-y-4">
+        <div class="flex justify-between items-center">
+          <input type="text" id="newDocName" placeholder="New document name" 
+                 class="flex-1 p-2 border rounded dark:bg-gray-800 dark:border-gray-700">
+          <button id="createDoc" class="ml-2 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors">
+            Create
+          </button>
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+          <h3 class="text-sm font-medium mb-2">Your Documents</h3>
+          <ul id="documentList" class="max-h-[300px] overflow-y-auto space-y-2 pb-4">
+            <!-- Documents will be listed here -->
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button id="closeDocModal" class="px-4 py-2 border rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character selector modal (hidden initially) -->
+  <div id="characterSelectorModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-semibold text-white">Add Character</h3>
+        <button id="closeCharacterSelector" class="text-gray-400 hover:text-gray-300">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <div id="availableCharacters" class="flex flex-wrap gap-2">
+        <!-- Available characters will be added here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Chat Modal -->
+  <div id="aiChatModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-900 rounded-lg w-full max-w-2xl mx-4 flex flex-col h-[60vh]">
+      <!-- Header -->
+      <div class="flex items-center justify-between p-4 border-b dark:border-gray-700">
+        <div class="flex items-center gap-4">
+          <h3 class="text-lg font-semibold">AI Assistant</h3>
+          <button id="clearChat" 
+                  class="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 
+                         flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            <span>Clear</span>
+          </button>
+        </div>
+        <button id="closeAiChat" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      
+      <!-- Chat History -->
+      <div id="aiChatHistory" class="flex-1 overflow-y-auto px-8 py-4 space-y-8 min-h-0">
+        <!-- Messages will be added here -->
+      </div>
+      
+      <!-- Input Area -->
+      <div class="border-t dark:border-gray-700 p-4">
+        <div class="mb-3 flex items-center gap-2">
+          <input type="checkbox" id="includeSection" 
+                 class="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 
+                        focus:ring-blue-500 dark:focus:ring-blue-400 dark:bg-gray-700">
+          <label for="includeSection" class="text-sm">Include current section</label>
+        </div>
+        <div class="flex gap-2">
+          <textarea id="aiChatInput" 
+                    class="flex-1 p-2 border rounded-lg dark:border-gray-700 dark:bg-gray-800 resize-none focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-gray-600"
+                    rows="2"
+                    placeholder="Type your message..."></textarea>
+          <button id="aiChatSend" 
+                  class="h-9 px-3 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors flex items-center gap-2 min-w-[70px] justify-center">
+            <span>Send</span>
+            <svg class="animate-spin h-4 w-4 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  const STORAGE_KEY = 'myBookData';
+  const SETTINGS_KEY = 'myBookSettings';
+  const DOCUMENTS_KEY = 'myDocuments';
+  const SESSION_KEY = 'userSession';
+  const LAST_ACTIVE_KEY = 'lastActive';
+  const SPEECH_SETTINGS_KEY = 'speechSettings';
+
+  let settings = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {
+    font: 'font-palatino',
+    fontSize: '14',
+    pageWidth: '700',
+    darkMode: false
+  };
+
+  let documents = {
+    currentDocument: null,
+    documents: []
+  };
+
+  let bookData = {sections: [], selectedSection: null, currentTab: 'chapter'};
+
+  // Add this to the initial state declarations
+  let speechSettings = JSON.parse(localStorage.getItem(SPEECH_SETTINGS_KEY)) || {
+    paletteVisible: false,
+    selectedCharacters: []
+  };
+
+  // Add these to your state variables
+  let currentConversation = null;
+
+  // DOM Elements
+  const sectionListEl = document.getElementById('sectionList');
+  const editorEl = document.getElementById('editor');
+  const wordCountEl = document.getElementById('wordCount');
+  const modalOverlay = document.getElementById('modalOverlay');
+  const closeModal = document.getElementById('closeModal');
+  const exportBtn = document.getElementById('exportBtn');
+  const menuButton = document.querySelector('.menu-button');
+  const themeToggle = document.querySelector('.theme-toggle');
+  const fontSelect = document.getElementById('fontSelect');
+  const fontSizeRange = document.getElementById('fontSizeRange');
+  const fontSizeValue = document.getElementById('fontSizeValue');
+  const pageWidthRange = document.getElementById('pageWidthRange');
+  const pageWidthValue = document.getElementById('pageWidthValue');
+  const documentModal = document.getElementById('documentModal');
+  const documentSelector = document.getElementById('documentSelector');
+  const closeDocModal = document.getElementById('closeDocModal');
+  const newDocName = document.getElementById('newDocName');
+  const createDoc = document.getElementById('createDoc');
+  const documentList = document.getElementById('documentList');
+  const loginScreen = document.getElementById('loginScreen');
+  const loginBtn = document.getElementById('loginBtn');
+  const signupBtn = document.getElementById('signupBtn');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const authError = document.getElementById('authError');
+  const copyButton = document.getElementById('copyButton');
+  const copyConfirmation = document.getElementById('copyConfirmation');
+  const dictateButton = document.getElementById('dictateButton');
+  const recordingStatus = document.getElementById('recordingStatus');
+  const speechToggle = document.querySelector('.speech-toggle');
+  const speechPalette = document.getElementById('speechPalette');
+  const recordButton = document.getElementById('recordButton');
+
+  // State variables
+  let activeContextMenu = null;
+  let activePopover = null;
+  let activeMenu = null;
+  let activeTooltip = null;
+  let autoSaveTimeout = null;
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let mediaStream = null;
+  let isMediaInitialized = false;
+  let currentRecordingCharacter = null;
+
+  // Add this near the top with other state variables
+  let initializedStream = null;
+  let initializedRecorder = null;
+
+  const supabaseUrl = 'https://rqkehypbbqgchmfgxffi.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxa2VoeXBiYnFnY2htZmd4ZmZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM2ODY5NDAsImV4cCI6MjA0OTI2Mjk0MH0.GW5IH39dkEH6792Dq4xqD2Z6zh4TbewnqObCvvNfan0';
+  const { createClient } = supabase;
+  const supabaseClient = createClient(supabaseUrl, supabaseKey);
+
+  async function signIn(email, password) {
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      // Store session
+      localStorage.setItem(SESSION_KEY, JSON.stringify(data.session));
+      
+      // Hide login screen and initialize app
+      loginScreen.classList.add('hidden');
+      initializeApp();
+    } catch (error) {
+      authError.textContent = error.message;
+      authError.classList.remove('hidden');
+    }
+  }
+
+  async function signUp(email, password) {
+    try {
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      authError.textContent = 'Check your email for the confirmation link';
+      authError.classList.remove('hidden');
+      authError.classList.remove('text-red-600', 'dark:text-red-400');
+      authError.classList.add('text-green-600', 'dark:text-green-400');
+    } catch (error) {
+      authError.textContent = error.message;
+      authError.classList.remove('hidden');
+    }
+  }
+
+  loginBtn.addEventListener('click', () => {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    signIn(email, password);
+  });
+
+  signupBtn.addEventListener('click', () => {
+    const email = emailInput.value;
+    const password = passwordInput.value;
+    signUp(email, password);
+  });
+
+  async function init() {
+    // Try to get stored session first
+    const storedSession = localStorage.getItem(SESSION_KEY);
+    if (storedSession) {
+      const { data: { session }, error } = await supabaseClient.auth.getSession();
+      if (session) {
+        document.getElementById('userEmail').textContent = session.user.email;
+        loginScreen.classList.add('hidden');
+        initializeApp();
+        return;
+      }
+    }
+    
+    // No stored session or invalid session
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
+    if (!session) {
+      loginScreen.classList.remove('hidden');
+      return;
+    }
+
+    // Valid session - store it and initialize
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    document.getElementById('userEmail').textContent = session.user.email;
+    loginScreen.classList.add('hidden');
+    initializeApp();
+  }
+
+  async function initializeApp() {
+    applySettings();
+    await fetchUserDocuments();
+    document.getElementById('documentTitle').textContent = documents.currentDocument !== null ?
+      documents.documents[documents.currentDocument].name : 'No Document Selected';
+    
+    // Restore speech palette state
+    if (speechSettings.paletteVisible) {
+      speechPalette.classList.remove('opacity-0', 'pointer-events-none');
+    }
+    
+    renderSections();
+    if (bookData.selectedSection !== null && bookData.sections[bookData.selectedSection]) {
+      loadSectionContent(bookData.selectedSection);
+    }
+    updateWordCount();
+    updateSpeechPalette();  // Add this line
+    attachEvents();
+  }
+
+  function applySettings() {
+    document.documentElement.classList.toggle('dark', settings.darkMode);
+    editorEl.className = `w-full p-5 ${settings.font} outline-none`;
+    editorEl.style.fontSize = settings.fontSize + 'px';
+    editorEl.style.maxWidth = settings.pageWidth + 'px';
+    
+    fontSelect.value = settings.font;
+    fontSizeRange.value = settings.fontSize;
+    fontSizeValue.textContent = settings.fontSize + 'px';
+    pageWidthRange.value = settings.pageWidth;
+    pageWidthValue.textContent = settings.pageWidth + 'px';
+  }
+
+  function saveSettings() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  }
+
+  function applyFont() {
+    settings.font = fontSelect.value;
+    editorEl.className = `w-full p-5 ${settings.font} outline-none`;
+    saveSettings();
+  }
+
+  function applyFontSize() {
+    settings.fontSize = fontSizeRange.value;
+    editorEl.style.fontSize = settings.fontSize + 'px';
+    fontSizeValue.textContent = settings.fontSize + 'px';
+    saveSettings();
+  }
+
+  function applyPageWidth() {
+    settings.pageWidth = pageWidthRange.value;
+    editorEl.style.maxWidth = settings.pageWidth + 'px';
+    pageWidthValue.textContent = settings.pageWidth + 'px';
+    saveSettings();
+  }
+
+  function toggleTheme() {
+    settings.darkMode = !settings.darkMode;
+    document.documentElement.classList.toggle('dark', settings.darkMode);
+    saveSettings();
+  }
+
+  function attachEvents() {
+    const addChapterBtn = document.querySelector('.add-chapter-btn');
+    addChapterBtn.addEventListener('click', addSection);
+    editorEl.addEventListener('input', onEditorInput);
+    editorEl.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        // Clear any existing autosave timeout
+        if (autoSaveTimeout) {
+          clearTimeout(autoSaveTimeout);
+        }
+        
+        // Save immediately if we have a section selected
+        const index = bookData.selectedSection;
+        if (index !== null && bookData.sections[index] && bookData.sections[index].id) {
+          const lines = Array.from(editorEl.querySelectorAll('p')).map(p => p.innerText);
+          await updateSectionInSupabase(bookData.sections[index].id, {
+            title: bookData.sections[index].title,
+            content: lines.join('\n'),
+            type: bookData.sections[index].type
+          });
+        }
+      }
+    });
+
+    menuButton.addEventListener('click', () => {
+      modalOverlay.classList.remove('hidden');
+      modalOverlay.classList.add('flex');
+    });
+
+    closeModal.addEventListener('click', () => {
+      modalOverlay.classList.remove('flex');
+      modalOverlay.classList.add('hidden');
+    });
+
+    exportBtn.addEventListener('click', exportBook);
+    themeToggle.addEventListener('click', toggleTheme);
+    
+    fontSelect.addEventListener('change', applyFont);
+    fontSizeRange.addEventListener('input', applyFontSize);
+    pageWidthRange.addEventListener('input', applyPageWidth);
+
+    const tabButtons = document.querySelectorAll('[data-type]');
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        // If we're switching away from speech mode, cleanup recorder
+        if (bookData.currentTab === 'chapter' && !speechPalette.classList.contains('opacity-0')) {
+          speechPalette.classList.add('opacity-0', 'pointer-events-none');
+          cleanupMediaRecorder();
+        }
+        bookData.currentTab = btn.dataset.type;
+        renderSections();
+      });
+    });
+
+    const sidebarToggleBtn = document.querySelector('.sidebar-toggle');
+    sidebarToggleBtn.addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('hidden');
+    });
+
+    documentSelector.addEventListener('click', showDocumentModal);
+    closeDocModal.addEventListener('click', hideDocumentModal);
+    createDoc.addEventListener('click', createDocument);
+    newDocName.addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') createDocument();
+    });
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    logoutBtn.addEventListener('click', logout);
+
+    copyButton.addEventListener('click', () => {
+      if (bookData.selectedSection !== null && bookData.sections[bookData.selectedSection]) {
+        navigator.clipboard.writeText(bookData.sections[bookData.selectedSection].content)
+          .then(() => {
+            const copyConfirmation = document.getElementById('copyConfirmation');
+            copyConfirmation.classList.add('opacity-100');
+            setTimeout(() => {
+              copyConfirmation.classList.remove('opacity-100');
+            }, 2000);
+          })
+          .catch(err => console.error('Failed to copy text:', err));
+      }
+    });
+
+    // Modify the speech toggle click handler
+    speechToggle.addEventListener('click', async () => {
+      const isClosing = !speechPalette.classList.contains('opacity-0');
+      
+      speechPalette.classList.toggle('opacity-0');
+      speechPalette.classList.toggle('pointer-events-none');
+      
+      // Update and save settings
+      speechSettings.paletteVisible = !isClosing;
+      saveSpeechSettings();
+      
+      if (isClosing) {
+        // Cleanup when closing
+        cleanupMediaRecorder();
+      } else if (!initializedRecorder) {
+        // Initialize when opening
+        try {
+          initializedStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          initializedRecorder = new MediaRecorder(initializedStream, {
+            mimeType: 'audio/webm'
+          });
+          
+          initializedRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+          
+          initializedRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            await sendAudioToEdgeFunction(audioBlob, currentRecordingCharacter);
+          };
+        } catch (error) {
+          console.error('Error initializing media:', error);
+        }
+      }
+      
+      updateSpeechPalette();
+    });
+
+    document.getElementById('addCharacterBtn').addEventListener('click', () => {
+      document.getElementById('characterSelectorModal').classList.remove('hidden');
+      updateSpeechPalette();
+    });
+
+    document.getElementById('closeCharacterSelector').addEventListener('click', () => {
+      document.getElementById('characterSelectorModal').classList.add('hidden');
+    });
+
+    document.getElementById('narratorRecordBtn').addEventListener('click', async () => {
+      const button = document.getElementById('narratorRecordBtn');
+      const isCurrentlyRecording = button.classList.contains('recording');
+      
+      // Stop any other ongoing recordings
+      if (!isCurrentlyRecording) {
+        document.querySelectorAll('.record-button.recording').forEach(btn => {
+          btn.classList.remove('recording');
+          stopRecording();
+        });
+      }
+
+      if (isCurrentlyRecording) {
+        await stopRecording();
+        button.classList.remove('recording');
+        button.classList.remove('bg-red-600', 'hover:bg-red-700');
+        button.classList.add('bg-gray-800', 'hover:bg-gray-700');
+      } else {
+        await startRecording();
+        button.classList.add('recording');
+        button.classList.remove('bg-gray-800', 'hover:bg-gray-700');
+        button.classList.add('bg-red-600', 'hover:bg-red-700');
+      }
+    });
+
+    document.getElementById('downloadButton').addEventListener('click', () => {
+      if (bookData.selectedSection !== null && bookData.sections[bookData.selectedSection]) {
+        const section = bookData.sections[bookData.selectedSection];
+        const content = section.content;
+        const title = section.title || 'section';
+        const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.txt`;
+        
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        const downloadConfirmation = document.getElementById('downloadConfirmation');
+        downloadConfirmation.classList.add('opacity-100');
+        setTimeout(() => {
+          downloadConfirmation.classList.remove('opacity-100');
+        }, 2000);
+      }
+    });
+
+    document.querySelector('.ai-chat-toggle').addEventListener('click', () => {
+      showAiChat();
+    });
+  }
+
+  function positionPopover(popover, button) {
+    const buttonRect = button.getBoundingClientRect();
+    const popoverRect = popover.getBoundingClientRect();
+    const arrow = popover.querySelector('.popover-arrow');
+    
+    let left = buttonRect.left - popoverRect.width - 8;
+    let top = buttonRect.top + (buttonRect.height - popoverRect.height) / 2;
+    
+    if (left < 16) {
+      left = buttonRect.right + 8;
+      arrow.style.left = '-6px';
+      arrow.style.right = 'auto';
+    } else {
+      arrow.style.left = 'auto';
+      arrow.style.right = '-6px';
+    }
+
+    top = Math.max(16, Math.min(top, window.innerHeight - popoverRect.height - 16));
+    
+    arrow.style.top = buttonRect.top - top + buttonRect.height/2 - 8 + 'px';
+    
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+  }
+
+  function renderSections() {
+    sectionListEl.innerHTML = '';
+    const filteredSections = bookData.sections.filter(s => 
+      s.type === bookData.currentTab && !s.archived
+    );
+
+    filteredSections.forEach((sec) => {
+      const globalIndex = bookData.sections.indexOf(sec);
+      const li = document.createElement('li');
+      li.className = `section-item`;
+      li.dataset.selected = (globalIndex === bookData.selectedSection).toString();
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'section-item-title';
+      titleSpan.textContent = sec.title;
+
+      const menuContainer = document.createElement('div');
+      menuContainer.className = 'menu-container';
+
+      const menuBtn = document.createElement('button');
+      menuBtn.className = 'menu-btn';
+      menuBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" 
+             viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" 
+                stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 
+                1 0 110-2 1 1 0 
+                010 2zm0 7a1 1 0 110-2 1 1 0 
+                010 2zm0 7a1 1 0 110-2 1 1 0 
+                010 2z" />
+        </svg>
+      `;
+
+      const tooltip = document.createElement('div');
+      tooltip.className = 'menu-tooltip';
+      tooltip.innerHTML = `
+        <div class="menu-item menu-item-delete" data-action="delete">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+          Delete
+        </div>
+      `;
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeTooltip && activeTooltip !== tooltip) {
+          activeTooltip.removeAttribute('data-visible');
+        }
+        const isVisible = tooltip.getAttribute('data-visible') === 'true';
+        if (isVisible) {
+          tooltip.removeAttribute('data-visible');
+          activeTooltip = null;
+        } else {
+          tooltip.setAttribute('data-visible', 'true');
+          activeTooltip = tooltip;
+        }
+      });
+
+      tooltip.querySelector('.menu-item-delete').addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleSectionAction('delete', globalIndex);
+        tooltip.removeAttribute('data-visible');
+        activeTooltip = null;
+      });
+
+      menuContainer.appendChild(menuBtn);
+      menuContainer.appendChild(tooltip);
+
+      li.appendChild(titleSpan);
+      li.appendChild(menuContainer);
+
+      li.setAttribute('draggable', true);
+      li.dataset.index = globalIndex;
+
+      li.addEventListener('click', () => selectSection(globalIndex));
+      li.addEventListener('dragstart', onDragStart);
+      li.addEventListener('dragenter', onDragEnter);
+      li.addEventListener('dragleave', onDragLeave);
+
+      sectionListEl.appendChild(li);
+    });
+
+    document.querySelectorAll('[data-type]').forEach(btn => {
+      btn.dataset.active = (btn.dataset.type === bookData.currentTab).toString();
+    });
+  }
+
+  function updateSpeechPalette() {
+    const characterList = document.getElementById('characterList');
+    const availableCharacters = document.getElementById('availableCharacters');
+    
+    // Get all characters
+    const characters = bookData.sections.filter(s => s.type === 'character');
+    
+    // Update selected characters in bookData based on speechSettings
+    characters.forEach(char => {
+      char.isSelectedForSpeech = speechSettings.selectedCharacters.includes(char.title);
+    });
+    
+    const activeCharacters = characters.filter(c => c.isSelectedForSpeech);
+    const inactiveCharacters = characters.filter(c => !c.isSelectedForSpeech);
+    
+    // Update active character list
+    characterList.innerHTML = activeCharacters.map(char => `
+      <div class="character-chip" data-character="${char.title}">
+        <button class="record-button">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+        </svg>
+      </button>
+      <span class="text-lg">${char.title}</span>
+      <button class="delete-button">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    `).join('');
+
+    // Update available characters in modal
+    availableCharacters.innerHTML = inactiveCharacters.map(char => `
+      <button class="character-chip" data-character="${char.title}">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span>${char.title}</span>
+      </button>
+    `).join('');
+
+    attachCharacterEventListeners();
+  }
+
+  function attachCharacterEventListeners() {
+    const characterList = document.getElementById('characterList');
+    const availableCharacters = document.getElementById('availableCharacters');
+
+    // Add event listeners to record buttons
+    characterList.querySelectorAll('.record-button').forEach(button => {
+      const chip = button.closest('.character-chip');
+      const characterName = chip.dataset.character;
+      
+      button.addEventListener('click', async () => {
+        const isCurrentlyRecording = button.classList.contains('recording');
+        
+        // Stop any other ongoing recordings
+        if (!isCurrentlyRecording) {
+          characterList.querySelectorAll('.record-button.recording').forEach(recordingBtn => {
+            recordingBtn.classList.remove('recording');
+            stopRecording();
+          });
+        }
+
+        if (isCurrentlyRecording) {
+          await stopRecording();
+          button.classList.remove('recording');
+        } else {
+          await startRecording(characterName);
+          button.classList.add('recording');
+        }
+      });
+    });
+
+    // Add event listeners to delete buttons
+    characterList.querySelectorAll('.delete-button').forEach(button => {
+      const chip = button.closest('.character-chip');
+      const characterName = chip.dataset.character;
+      button.addEventListener('click', () => {
+        const section = bookData.sections.find(s => s.type === 'character' && s.title === characterName);
+        if (section) {
+          section.isSelectedForSpeech = false;
+          // Update speechSettings
+          speechSettings.selectedCharacters = speechSettings.selectedCharacters.filter(name => name !== characterName);
+          saveSpeechSettings();
+          updateSpeechPalette();
+        }
+      });
+    });
+
+    // Add event listeners to available characters
+    availableCharacters.querySelectorAll('.character-chip').forEach(button => {
+      const characterName = button.dataset.character;
+      button.addEventListener('click', () => {
+        const section = bookData.sections.find(s => s.type === 'character' && s.title === characterName);
+        if (section) {
+          section.isSelectedForSpeech = true;
+          // Update speechSettings
+          speechSettings.selectedCharacters.push(characterName);
+          saveSpeechSettings();
+          updateSpeechPalette();
+        }
+      });
+    });
+  }
+
+  function addCharacter() {
+    const nameInput = document.getElementById('characterName');
+    const name = nameInput.value.trim();
+    
+    if (name) {
+      // Create new character section
+      const newCharacter = {
+        title: name,
+        content: `@${name}\n\nCharacter notes for ${name}...`,
+        type: 'character'
+      };
+      
+      // Add to sections
+      bookData.sections.push(newCharacter);
+      
+      // Close modal and clear input
+      document.getElementById('characterSelectorModal').classList.add('hidden');
+      nameInput.value = '';
+      
+      // Update UI
+      updateSpeechPalette();
+      saveData();
+      renderSections();
+    }
+  }
+
+  function updateWordCount() {
+    const text = editorEl.innerText.trim();
+    const count = text ? text.split(/\s+/).length : 0;
+    wordCountEl.textContent = 'Words: ' + count;
+  }
+
+  function saveData() {
+    if (documents.currentDocument !== null) {
+      documents.documents[documents.currentDocument].data = {...bookData};
+      documents.documents[documents.currentDocument].updated_at = Date.now();
+      
+      // Save last active state
+      const lastActive = {
+        documentId: documents.documents[documents.currentDocument].id,
+        sectionIndex: bookData.selectedSection,
+        tab: bookData.currentTab
+      };
+      localStorage.setItem(LAST_ACTIVE_KEY, JSON.stringify(lastActive));
+    }
+    localStorage.setItem(DOCUMENTS_KEY, JSON.stringify(documents));
+  }
+
+  function exportBook() {
+    const allContent = bookData.sections.map(sec => {
+      let header = '';
+      if (sec.type === 'chapter') {
+        header = `# ${sec.title}\n\n`;
+      } else if (sec.type === 'character') {
+        header = `@${sec.title}\n\n`;
+      } else {
+        header = `${sec.title}\n\n`;
+      }
+      return header + sec.content;
+    }).join('\n\n');
+
+    const blob = new Blob([allContent], {type: 'text/markdown'});
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'my_book.md';
+    a.click();
+
+    URL.revokeObjectURL(url);
+  }
+
+  let draggedItemIndex = null;
+
+  function onDragStart(e) {
+    draggedItemIndex = e.target.dataset.index;
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    const li = closestChapterItem(e.target);
+    if (li && li.dataset.index !== draggedItemIndex) {
+      li.classList.add('drag-over');
+    }
+  }
+
+  function onDragEnter(e) {
+    const li = closestChapterItem(e.target);
+    if (li && li.dataset.index !== draggedItemIndex) {
+      li.classList.add('drag-over');
+    }
+  }
+
+  function onDragLeave(e) {
+    const li = closestChapterItem(e.target);
+    if (li) {
+      li.classList.remove('drag-over');
+    }
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    const li = closestChapterItem(e.target);
+    if (li && li.dataset.index !== draggedItemIndex) {
+      const fromIndex = parseInt(draggedItemIndex, 10);
+      const toIndex = parseInt(li.dataset.index, 10);
+      const [movedSection] = bookData.sections.splice(fromIndex, 1);
+      bookData.sections.splice(toIndex, 0, movedSection);
+      if (bookData.selectedSection === fromIndex) {
+        bookData.selectedSection = toIndex;
+      }
+      saveData();
+      renderSections();
+    }
+    clearDragOverStates();
+  }
+
+  function clearDragOverStates() {
+    const items = sectionListEl.querySelectorAll('.drag-over');
+    items.forEach(i => i.classList.remove('drag-over'));
+  }
+
+  function closestChapterItem(el) {
+    while (el && !el.classList.contains('section-item')) {
+      el = el.parentElement;
+    }
+    return el;
+  }
+
+  async function deleteSectionFromSupabase(sectionId) {
+    try {
+      const { error } = await supabaseClient
+        .from('sections')
+        .delete()
+        .eq('id', sectionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting section:', error);
+      throw error;
+    }
+  }
+
+  function handleSectionAction(action, index) {
+    switch (action) {
+      case 'delete':
+        if (confirm('Are you sure you want to delete this section?')) {
+          const section = bookData.sections[index];
+          if (section.id) {
+            deleteSectionFromSupabase(section.id)
+              .then(() => {
+                bookData.sections.splice(index, 1);
+                if (bookData.selectedSection === index) {
+                  bookData.selectedSection = null;
+                  editorEl.innerHTML = '';
+                } else if (bookData.selectedSection > index) {
+                  bookData.selectedSection--;
+                }
+                saveData();
+                renderSections();
+              })
+              .catch(error => {
+                console.error('Failed to delete section:', error);
+              });
+          } else {
+            bookData.sections.splice(index, 1);
+            if (bookData.selectedSection === index) {
+              bookData.selectedSection = null;
+              editorEl.innerHTML = '';
+            } else if (bookData.selectedSection > index) {
+              bookData.selectedSection--;
+            }
+            saveData();
+            renderSections();
+          }
+        }
+        break;
+      case 'archive':
+        bookData.sections[index].archived = true;
+        saveData();
+        renderSections();
+        break;
+    }
+  }
+
+  // Close any open popover when clicking outside
+  document.addEventListener('click', (e) => {
+    if (activePopover && !e.target.closest('.menu-btn') && !e.target.closest('.popover')) {
+      activePopover.classList.add('hidden');
+      activePopover = null;
+    }
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener('click', () => {
+    if (activeMenu) {
+      activeMenu.classList.add('hidden');
+      activeMenu = null;
+    }
+  });
+
+  // Close tooltip when clicking outside
+  document.addEventListener('click', () => {
+    if (activeTooltip) {
+      activeTooltip.classList.add('hidden');
+      activeTooltip = null;
+    }
+  });
+
+  function showDocumentModal() {
+    documentModal.classList.remove('hidden');
+    documentModal.classList.add('flex');
+    renderDocumentList();
+  }
+
+  function hideDocumentModal() {
+    documentModal.classList.add('hidden');
+    documentModal.classList.remove('flex');
+  }
+
+  function renderDocumentList() {
+    documentList.innerHTML = '';
+    const sortedDocs = [...documents.documents].sort((a, b) => 
+      (b.updated_at || 0) - (a.updated_at || 0)
+    );
+    
+    sortedDocs.forEach((doc, index) => {
+      const originalIndex = documents.documents.indexOf(doc);
+      const li = document.createElement('li');
+      li.className = 'flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer';
+      if (documents.currentDocument === originalIndex) {
+        li.classList.add('bg-gray-100', 'dark:bg-gray-800');
+      }
+      
+      li.innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <span>${doc.name}</span>
+        </div>
+        ${documents.currentDocument !== originalIndex ? `
+          <div class="relative">
+            <button class="menu-btn p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
+              ⋮
+            </button>
+            <div class="menu-tooltip" data-visible="false">
+              <button class="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700" data-delete="${originalIndex}">
+                Delete
+              </button>
+            </div>
+          </div>
+        ` : ''}
+      `;
+      
+      li.addEventListener('click', (e) => {
+        if (!e.target.closest('.menu-btn') && !e.target.closest('.menu-tooltip')) {
+          loadDocument(originalIndex);
+        }
+      });
+
+      const menuContainer = li.querySelector('.relative');
+      if (menuContainer) {
+        let timeoutId;
+        
+        menuContainer.addEventListener('mouseenter', () => {
+          clearTimeout(timeoutId);
+          const tooltip = menuContainer.querySelector('.menu-tooltip');
+          tooltip.setAttribute('data-visible', 'true');
+        });
+
+        menuContainer.addEventListener('mouseleave', () => {
+          timeoutId = setTimeout(() => {
+            const tooltip = menuContainer.querySelector('.menu-tooltip');
+            tooltip.setAttribute('data-visible', 'false');
+          }, 100);
+        });
+      }
+
+      const deleteBtn = li.querySelector('[data-delete]');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm('Are you sure you want to delete this document?')) {
+            deleteDocument(originalIndex);
+          }
+        });
+      }
+
+      documentList.appendChild(li);
+    });
+  }
+
+  async function createDocument() {
+    const name = newDocName.value.trim();
+    if (!name) return;
+
+    const newDoc = {
+      name,
+      data: {
+        sections: [
+          { 
+            title: 'Introduction', 
+            content: '# Introduction\n\nStart writing your speech here...', 
+            type: 'chapter' 
+          },
+          {
+            title: 'Speaker Notes',
+            content: '@Speaker Notes\n\nAdd notes about the speaker here...',
+            type: 'character'
+          },
+          {
+            title: 'Research Notes',
+            content: 'Research Notes\n\nAdd your research and references here...',
+            type: 'note'
+          }
+        ],
+        selectedSection: 0,
+        currentTab: 'chapter'
+      }
+    };
+
+    try {
+      const createdDoc = await createDocumentInSupabase(name, newDoc.data.sections);
+      documents.documents.push(createdDoc);
+      documents.currentDocument = documents.documents.length - 1;
+      bookData = {...createdDoc.data};
+      bookData.selectedSection = 0;  // Ensure first section is selected
+      document.getElementById('documentTitle').textContent = name;
+      
+      saveDocuments();
+      renderSections();
+      loadSectionContent(0);  // Load the first section's content
+      updateWordCount();
+      
+      newDocName.value = '';
+      hideDocumentModal();
+    } catch (error) {
+      console.error('Error creating document:', error);
+    }
+  }
+
+  async function deleteDocument(index) {
+    const docId = documents.documents[index].id;
+    try {
+      await deleteDocumentFromSupabase(docId);
+      documents.documents.splice(index, 1);
+      if (documents.currentDocument === index) {
+        documents.currentDocument = documents.documents.length > 0 ? 0 : null;
+        bookData = documents.currentDocument !== null ? 
+          {...documents.documents[documents.currentDocument].data} : 
+          {sections: [], selectedSection: null, currentTab: 'chapter'};
+        document.getElementById('documentTitle').textContent = documents.currentDocument !== null ?
+          documents.documents[documents.currentDocument].name : 'No Document Selected';
+      } else if (documents.currentDocument > index) {
+        documents.currentDocument--;
+      }
+      saveDocuments();
+      renderDocumentList();
+      renderSections();
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
+  }
+
+  function saveDocuments() {
+    if (documents.currentDocument !== null) {
+      documents.documents[documents.currentDocument].data = {...bookData};
+      documents.documents[documents.currentDocument].updated_at = Date.now();
+    }
+    localStorage.setItem(DOCUMENTS_KEY, JSON.stringify(documents));
+  }
+
+  // Add logout function
+  async function logout() {
+    try {
+      await supabaseClient.auth.signOut();
+      localStorage.clear();
+      window.location.reload();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  }
+
+  // Add these functions after the Supabase initialization
+
+  async function fetchUserDocuments() {
+    try {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      const { data, error } = await supabaseClient
+        .from('documents')
+        .select(`
+          id,
+          name,
+          updated_at,
+          sections (
+            id,
+            title,
+            content,
+            type,
+            order
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Clear any existing local storage
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(DOCUMENTS_KEY);
+
+      // Get last active state
+      const lastActive = JSON.parse(localStorage.getItem(LAST_ACTIVE_KEY));
+
+      // Convert to our local format
+      documents.documents = data ? data.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        updated_at: new Date(doc.updated_at).getTime(),
+        data: {
+          sections: doc.sections.sort((a, b) => a.order - b.order).map(section => ({
+            id: section.id,
+            title: section.title,
+            content: section.content,
+            type: section.type
+          })),
+          selectedSection: null,
+          currentTab: 'chapter'
+        }
+      })) : [];
+
+      if (documents.documents.length > 0) {
+        // Try to restore last active document
+        if (lastActive && lastActive.documentId) {
+          const lastDocIndex = documents.documents.findIndex(doc => doc.id === lastActive.documentId);
+          if (lastDocIndex !== -1) {
+            documents.currentDocument = lastDocIndex;
+            bookData = {...documents.documents[lastDocIndex].data};
+            bookData.selectedSection = lastActive.sectionIndex;
+            bookData.currentTab = lastActive.tab || 'chapter';
+          } else {
+            documents.currentDocument = 0;
+            bookData = {...documents.documents[0].data};
+          }
+        } else {
+          documents.currentDocument = 0;
+          bookData = {...documents.documents[0].data};
+        }
+        document.getElementById('documentTitle').textContent = documents.documents[documents.currentDocument].name;
+      } else {
+        documents.currentDocument = null;
+        bookData = {sections: [], selectedSection: null, currentTab: 'chapter'};
+        document.getElementById('documentTitle').textContent = 'No Document Selected';
+        editorEl.innerHTML = '';
+      }
+
+      saveDocuments(); // Update local storage
+      renderSections();
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  }
+
+  async function createDocumentInSupabase(name, sections) {
+    try {
+      // First create the document
+      const { data: doc, error: docError } = await supabaseClient
+        .from('documents')
+        .insert([{ 
+          name,
+          user_id: (await supabaseClient.auth.getUser()).data.user.id
+        }])
+        .select()
+        .single();
+
+      if (docError) throw docError;
+
+      // Then create all sections
+      const sectionsToInsert = sections.map((section, index) => ({
+        document_id: doc.id,
+        title: section.title,
+        content: section.content,
+        type: section.type,
+        order: index
+      }));
+
+      const { data: sectionData, error: sectionError } = await supabaseClient
+        .from('sections')
+        .insert(sectionsToInsert)
+        .select();
+
+      if (sectionError) throw sectionError;
+
+      return {
+        id: doc.id,
+        name: doc.name,
+        updated_at: new Date(doc.updated_at).getTime(),
+        data: {
+          sections: sectionData.map(section => ({
+            id: section.id,
+            title: section.title,
+            content: section.content,
+            type: section.type
+          })),
+          selectedSection: 0,
+          currentTab: 'chapter'
+        }
+      };
+    } catch (error) {
+      console.error('Error creating document:', error);
+      throw error;
+    }
+  }
+
+  async function updateSectionInSupabase(sectionId, updates) {
+    try {
+      const { error } = await supabaseClient
+        .from('sections')
+        .update(updates)
+        .eq('id', sectionId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error updating section:', error);
+    }
+  }
+
+  async function deleteDocumentFromSupabase(documentId) {
+    try {
+      // Sections will be automatically deleted due to foreign key constraint
+      const { error } = await supabaseClient
+        .from('documents')
+        .delete()
+        .eq('id', documentId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
+  }
+
+  async function loadDocument(index) {
+    documents.currentDocument = index;
+    bookData = {...documents.documents[index].data};
+    document.getElementById('documentTitle').textContent = documents.documents[index].name;
+    saveData(); // This will now save the active document
+    renderSections();
+    if (bookData.selectedSection !== null) {
+      loadSectionContent(bookData.selectedSection);
+    }
+    hideDocumentModal();
+  }
+
+  async function createSectionInSupabase(documentId, section, order) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('sections')
+        .insert([{
+          document_id: documentId,
+          title: section.title,
+          content: section.content,
+          type: section.type,
+          order: order
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating section:', error);
+      throw error;
+    }
+  }
+
+  async function addSection() {
+    let newSection;
+    if (bookData.currentTab === 'chapter') {
+      newSection = { title: 'Chapter', content: '# Chapter', type: 'chapter' };
+    } else if (bookData.currentTab === 'character') {
+      newSection = { title: 'Character', content: '@ Character', type: 'character' };
+    } else {
+      newSection = { title: 'Note', content: 'Note', type: 'note' };
+    }
+
+    try {
+      if (documents.currentDocument !== null) {
+        const docId = documents.documents[documents.currentDocument].id;
+        const order = bookData.sections.length;
+        const createdSection = await createSectionInSupabase(docId, newSection, order);
+        newSection.id = createdSection.id;
+      }
+
+      bookData.sections.push(newSection);
+      bookData.selectedSection = bookData.sections.length - 1;
+      saveData();
+      renderSections();
+      loadSectionContent(bookData.selectedSection);  // Add this line to load the new section content
+      return bookData.selectedSection;
+    } catch (error) {
+      console.error('Error adding section:', error);
+      throw error;
+    }
+  }
+
+  function selectSection(index) {
+    bookData.selectedSection = index;
+    saveData(); // This will now save the active section
+    renderSections();
+    loadSectionContent(index);
+  }
+
+  function loadSectionContent(index) {
+    const section = bookData.sections[index];
+    if (section) {
+      editorEl.innerHTML = '';  // Clear existing content
+      const lines = section.content.split('\n');
+      lines.forEach(line => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        editorEl.appendChild(p);
+      });
+      updateWordCount();
+    } else {
+      editorEl.innerHTML = '';  // Clear editor if no section
+      updateWordCount();
+    }
+  }
+
+  function onEditorInput() {
+    const rawText = editorEl.innerText;
+    const index = bookData.selectedSection;
+    if (index !== null && bookData.sections[index]) {
+      const lines = Array.from(editorEl.querySelectorAll('p')).map(p => p.innerText);
+      bookData.sections[index].content = lines.join('\n');
+
+      const firstLine = lines[0] ? lines[0].trim() : '';
+      let processedTitle = '';
+      let type = 'note';
+
+      if (firstLine.startsWith('#')) {
+        processedTitle = firstLine.replace(/^#+\s*/, '') || 'Untitled Chapter';
+        type = 'chapter';
+        bookData.currentTab = 'chapter';
+      } else if (firstLine.startsWith('@')) {
+        processedTitle = firstLine.replace(/^@+/, '').trim() || 'Unnamed Character';
+        type = 'character';
+        bookData.currentTab = 'character';
+      } else {
+        processedTitle = firstLine || 'Untitled Note';
+        type = 'note';
+        bookData.currentTab = 'note';
+      }
+
+      bookData.sections[index].title = processedTitle;
+      bookData.sections[index].type = type;
+
+      // Clear any existing timeout
+      if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+      }
+
+      // Set new timeout for auto-save
+      autoSaveTimeout = setTimeout(() => {
+        // Update section in Supabase
+        if (bookData.sections[index].id) {
+          updateSectionInSupabase(bookData.sections[index].id, {
+            title: processedTitle,
+            content: lines.join('\n'),
+            type: type
+          });
+        }
+      }, AUTOSAVE_DELAY);
+
+      // Update local storage and UI immediately
+      saveData();
+      renderSections();
+      updateWordCount();
+    }
+  }
+
+  async function initializeMedia() {
+    if (!isMediaInitialized) {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(mediaStream, {
+          mimeType: 'audio/webm'
+        });
+        
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          await sendAudioToEdgeFunction(audioBlob, currentRecordingCharacter);
+        };
+
+        isMediaInitialized = true;
+      } catch (error) {
+        console.error('Error initializing media:', error);
+        throw error;
+      }
+    }
+  }
+
+  // Modify startRecording to use the initialized recorder
+  async function startRecording(characterName = null) {
+    try {
+      // Check if we have a section selected
+      if (bookData.selectedSection === null) {
+        await addSection();
+        loadSectionContent(bookData.selectedSection);
+      }
+
+      // Try to use initialized recorder first
+      if (initializedRecorder && initializedRecorder.state === 'inactive') {
+        try {
+          audioChunks = [];
+          initializedRecorder.start();
+          isRecording = true;
+          currentRecordingCharacter = characterName;
+          return;
+        } catch (error) {
+          console.log('Existing recorder failed, reinitializing...');
+          // If the existing recorder fails, continue to reinitialize
+        }
+      }
+
+      // Initialize new recorder
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const newRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm'
+        });
+        
+        audioChunks = [];
+        
+        newRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        newRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          await sendAudioToEdgeFunction(audioBlob, characterName);
+          stream.getTracks().forEach(track => track.stop());
+        };
+        
+        // Update the initialized recorder references
+        initializedStream = stream;
+        initializedRecorder = newRecorder;
+        
+        // Start recording
+        newRecorder.start();
+        isRecording = true;
+        currentRecordingCharacter = characterName;
+      } catch (error) {
+        console.error('Error starting recording:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error in startRecording:', error);
+      // Optionally show an error message to the user
+      alert('Failed to start recording. Please ensure microphone access is granted and try again.');
+    }
+  }
+
+  async function stopRecording() {
+    if (initializedRecorder && isRecording) {
+      initializedRecorder.stop();
+      isRecording = false;
+    }
+  }
+
+  async function sendAudioToEdgeFunction(audioBlob, characterName = null) {
+    const processingLine = document.getElementById('processingLine');
+    if (!processingLine) return;
+
+    try {
+      processingLine.classList.add('active');
+      
+      const formData = new FormData();
+      const audioFile = new File([audioBlob], 'recording.webm', { type: audioBlob.type });
+      formData.append('audio', audioFile);
+      
+      // Add character name to form data if provided
+      if (characterName) {
+        formData.append('character', characterName);
+      }
+      
+      // Add previous text content
+      const previousText = Array.from(editorEl.querySelectorAll('p'))
+        .map(p => p.textContent)
+        .join('\n');
+      formData.append('previousText', previousText);
+      
+      const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+      if (sessionError) throw new Error('Authentication required');
+      
+      const response = await fetch('https://rqkehypbbqgchmfgxffi.supabase.co/functions/v1/speech-writer', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': supabaseKey
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to transcribe audio');
+      }
+
+      const { text, character, enhancedText } = await response.json();
+      
+      // Create new paragraph for transcribed text
+      const newP = document.createElement('p');
+      // Use the enhanced text if available, otherwise fall back to basic format
+      if (enhancedText) {
+        newP.textContent = enhancedText;
+      } else {
+        const speakerName = character || characterName;
+        newP.textContent = speakerName ? `${speakerName}: ${text}` : text;
+      }
+      
+      // Add the new paragraph to the editor
+      editorEl.appendChild(newP);
+      
+      // Update section content
+      if (bookData.selectedSection !== null && bookData.sections[bookData.selectedSection]) {
+        const section = bookData.sections[bookData.selectedSection];
+        section.content = Array.from(editorEl.querySelectorAll('p'))
+          .map(p => p.textContent)
+          .join('\n');
+        
+        // Trigger save
+        const event = new Event('input', {
+          bubbles: true,
+          cancelable: true,
+        });
+        editorEl.dispatchEvent(event);
+      }
+
+      // Auto-scroll to inserted text
+      newP.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+    } catch (error) {
+      console.error('Error in sendAudioToEdgeFunction:', error);
+    } finally {
+      processingLine.classList.remove('active');
+    }
+  }
+
+  // Add cleanup when closing the speech palette
+  function cleanupMediaRecorder() {
+    if (initializedStream) {
+      initializedStream.getTracks().forEach(track => track.stop());
+      initializedStream = null;
+    }
+    initializedRecorder = null;
+  }
+
+  // Add cleanup when hiding speech palette
+  speechToggle.addEventListener('click', () => {
+    if (speechPalette.classList.contains('opacity-0')) {
+      cleanupMediaRecorder();
+    }
+  });
+
+  // Add this function to save speech settings
+  function saveSpeechSettings() {
+    localStorage.setItem(SPEECH_SETTINGS_KEY, JSON.stringify(speechSettings));
+  }
+
+  // Add these functions to handle the AI chat
+  async function showAiChat() {
+    const modal = document.getElementById('aiChatModal');
+    modal.classList.remove('hidden');
+    
+    // Load or create conversation for current document
+    if (documents.currentDocument !== null) {
+      const docId = documents.documents[documents.currentDocument].id;
+      await loadConversation(docId);
+    }
+    
+    // Focus input
+    document.getElementById('aiChatInput').focus();
+  }
+
+  async function loadConversation(documentId) {
+    try {
+      const { data, error } = await supabaseClient
+        .from('conversations')
+        .select('*')
+        .eq('document_id', documentId)
+        .maybeSingle();  // Use maybeSingle() instead of single()
+      
+      if (error) throw error;
+      
+      if (data) {
+        currentConversation = data;
+      } else {
+        // Create new conversation
+        const { data: newConv, error: createError } = await supabaseClient
+          .from('conversations')
+          .insert([{ 
+            document_id: documentId, 
+            messages: []
+          }])
+          .select()
+          .single();
+        
+        if (createError) throw createError;
+        currentConversation = newConv;
+      }
+      
+      renderChatHistory();
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      // Initialize empty conversation if there's an error
+      currentConversation = {
+        document_id: documentId,
+        messages: []
+      };
+      renderChatHistory();
+    }
+  }
+
+  function renderChatHistory() {
+    const history = document.getElementById('aiChatHistory');
+    history.innerHTML = currentConversation.messages.map(msg => {
+      const isUser = msg.role === 'user';
+      const messageClasses = isUser 
+        ? 'bg-blue-500 text-white rounded-2xl px-8 py-4'
+        : 'text-gray-900 dark:text-gray-100';
+      
+      return `
+        <div class="flex gap-3 ${isUser ? 'justify-end' : 'justify-start'}">
+          <div class="relative inline-block max-w-[80%] group">
+            <div class="${messageClasses} text-base leading-[1.8]" style="text-indent: 0;">
+              <div class="message-content">
+                ${marked.parse(msg.content.trim())}
+              </div>
+            </div>
+            ${!isUser ? `
+            <div class="absolute -bottom-8 left-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="relative">
+                <button class="p-1.5 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white insert-response-btn">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                  <svg class="absolute left-1/2 -translate-x-1/2 -top-6 w-4 h-4 text-green-500 opacity-0 pointer-events-none transition-opacity success-icon" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="relative">
+                <button class="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 copy-response-btn">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-12a2 2 0 00-2-2h-2M8 5a2 2 0 002 2h4a2 2 0 002-2M8 5a2 2 0 012-2h4a2 2 0 012 2"/>
+                  </svg>
+                  <svg class="absolute left-1/2 -translate-x-1/2 -top-6 w-4 h-4 text-green-500 opacity-0 pointer-events-none transition-opacity success-icon" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Add event listeners after rendering
+    history.querySelectorAll('.insert-response-btn').forEach((btn, index) => {
+      btn.addEventListener('click', () => {
+        const messageContent = currentConversation.messages[index * 2 + 1].content;
+        insertAIResponse(messageContent);
+        
+        // Show success indicator
+        const successIcon = btn.querySelector('.success-icon');
+        if (successIcon) {
+          successIcon.classList.add('opacity-100');
+          setTimeout(() => {
+            successIcon.classList.remove('opacity-100');
+          }, 2000);
+        }
+      });
+    });
+
+    history.querySelectorAll('.copy-response-btn').forEach((btn, index) => {
+      btn.addEventListener('click', () => {
+        const messageContent = currentConversation.messages[index * 2 + 1].content;
+        navigator.clipboard.writeText(messageContent).then(() => {
+          // Show success indicator
+          const successIcon = btn.querySelector('.success-icon');
+          if (successIcon) {
+            successIcon.classList.add('opacity-100');
+            setTimeout(() => {
+              successIcon.classList.remove('opacity-100');
+            }, 2000);
+          }
+        });
+      });
+    });
+
+    requestAnimationFrame(() => {
+      history.scrollTop = history.scrollHeight;
+    });
+  }
+
+  async function sendAiMessage(message) {
+    try {
+      // Show loading state
+      const sendButton = document.getElementById('aiChatSend');
+      const spinner = sendButton.querySelector('svg');
+      const buttonText = sendButton.querySelector('span');
+      buttonText.textContent = 'Sending';
+      spinner.classList.remove('hidden');
+      sendButton.disabled = true;
+
+      // Get section content if checkbox is checked
+      let documentText = '';
+      if (document.getElementById('includeSection').checked && 
+          bookData.selectedSection !== null && 
+          bookData.sections[bookData.selectedSection]) {
+        documentText = bookData.sections[bookData.selectedSection].content;
+      }
+
+      if (!currentConversation) {
+        currentConversation = {
+          document_id: documents.currentDocument !== null ? 
+            documents.documents[documents.currentDocument].id : null,
+          messages: []
+        };
+      }
+
+      // Add user message to conversation
+      currentConversation.messages.push({ role: 'user', content: message });
+      renderChatHistory();
+      
+      // Get AI response
+      const response = await fetch('https://rqkehypbbqgchmfgxffi.supabase.co/functions/v1/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session.access_token}`,
+          'apikey': supabaseKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message,
+          documentId: documents.currentDocument !== null ? 
+            documents.documents[documents.currentDocument].id : null,
+          conversationHistory: currentConversation.messages,
+          documentText
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to get AI response');
+      
+      const { response: aiResponse } = await response.json();
+      
+      // Add AI response to conversation
+      currentConversation.messages.push({ role: 'assistant', content: aiResponse });
+      renderChatHistory();
+      
+      // Save conversation to database
+      if (currentConversation.id) {
+        await supabaseClient
+          .from('conversations')
+          .update({ messages: currentConversation.messages })
+          .eq('id', currentConversation.id);
+      } else if (documents.currentDocument !== null) {
+        // Create new conversation if it doesn't exist
+        const { data, error } = await supabaseClient
+          .from('conversations')
+          .insert([{
+            document_id: documents.documents[documents.currentDocument].id,
+            messages: currentConversation.messages
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        currentConversation = data;
+      }
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+    } finally {
+      // Reset button state
+      const sendButton = document.getElementById('aiChatSend');
+      const spinner = sendButton.querySelector('svg');
+      const buttonText = sendButton.querySelector('span');
+      buttonText.textContent = 'Send';
+      spinner.classList.add('hidden');
+      sendButton.disabled = false;
+    }
+  }
+
+  // Add event listeners for the AI chat
+  document.getElementById('closeAiChat').addEventListener('click', () => {
+    document.getElementById('aiChatModal').classList.add('hidden');
+  });
+
+  document.getElementById('aiChatSend').addEventListener('click', async () => {
+    const input = document.getElementById('aiChatInput');
+    const message = input.value.trim();
+    if (message) {
+      input.value = '';
+      await sendAiMessage(message);
+    }
+  });
+
+  document.getElementById('aiChatInput').addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const message = e.target.value.trim();
+      if (message) {
+        e.target.value = '';
+        await sendAiMessage(message);
+      }
+    }
+  });
+
+  // Add event listeners for the AI chat
+  document.getElementById('clearChat').addEventListener('click', async () => {
+    if (confirm('Are you sure you want to clear the conversation?')) {
+      if (currentConversation) {
+        currentConversation.messages = [];
+        if (currentConversation.id) {
+          await supabaseClient
+            .from('conversations')
+            .update({ messages: [] })
+            .eq('id', currentConversation.id);
+        }
+        renderChatHistory();
+      }
+    }
+  });
+
+  // Add these functions to handle the button clicks
+  function insertAIResponse(text) {
+    if (bookData.selectedSection !== null) {
+      const p = document.createElement('p');
+      p.textContent = text;
+      editorEl.appendChild(p);
+      
+      // Trigger save
+      const event = new Event('input', {
+        bubbles: true,
+        cancelable: true,
+      });
+      editorEl.dispatchEvent(event);
+      
+      // Scroll to inserted text
+      p.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+      // Show success indicator
+      const button = document.querySelector('button[onclick*="insertAIResponse"]');
+      const successIcon = button?.parentElement?.querySelector('.success-icon');
+      if (successIcon) {
+        successIcon.classList.add('opacity-100');
+        setTimeout(() => {
+          successIcon.classList.remove('opacity-100');
+        }, 2000);
+      }
+    }
+  }
+  
+  function copyAIResponse(text) {
+    navigator.clipboard.writeText(text).then(() => {
+      // Show success indicator
+      const button = document.querySelector('button[onclick*="copyAIResponse"]');
+      const successIcon = button?.parentElement?.querySelector('.success-icon');
+      if (successIcon) {
+        successIcon.classList.add('opacity-100');
+        setTimeout(() => {
+          successIcon.classList.remove('opacity-100');
+        }, 2000);
+      }
+    });
+  }
+
+  // Initialize the app
+  document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
